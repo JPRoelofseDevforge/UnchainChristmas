@@ -75,18 +75,28 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_525774C0F7604DE2AB2A29978073835E }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6662A528EDA84EAE90F517A38FD5A084 }}
 
-      # Ensure 64-bit worker, pin Node to 18.x, and force Prisma to binary engines to avoid 32-bit Node-API issues
+      # Ensure correct runtime, pin Node to 18.x, and force Prisma to binary engines (Windows/Linux supported)
       - name: Configure App Service runtime and app settings
         uses: azure/cli@v1
         with:
           inlineScript: |
             set -e
             APP_NAME="unchain"
-            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+            RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
+            if [ -z "$RG" ]; then
+              echo "Resource group not found for app $APP_NAME"
+              exit 1
+            fi
             echo "Using resource group: $RG"
 
-            # Use 64-bit worker process on Windows App Service
-            az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
+            # Detect Linux vs Windows to apply platform-specific settings
+            KIND=$(az webapp show --name "$APP_NAME" -g "$RG" --query kind -o tsv || echo "")
+            if echo "$KIND" | grep -qi linux; then
+              echo "Linux App Service detected; skipping Windows-only worker process setting"
+            else
+              # Windows: ensure 64-bit worker process
+              az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
+            fi
 
             # App settings to pin Node and control Kudu build behavior + Prisma engine mode
             az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings \
@@ -102,7 +112,11 @@ jobs:
         with:
           inlineScript: |
             APP_NAME="unchain"
-            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+            RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
+            if [ -z "$RG" ]; then
+              echo "Resource group not found for app $APP_NAME"
+              exit 1
+            fi
             az webapp restart -g "$RG" -n "$APP_NAME"
 
       - name: Skip duplicate configuration
