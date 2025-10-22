@@ -50,6 +50,5 @@ jobs:
         id: deploy-to-webapp
         with:
           app-name: 'unchain'
-          slot-name: 'Production'
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0E11A86A63864A26860FB350B45A033B }}
