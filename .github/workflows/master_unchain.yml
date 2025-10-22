@@ -9,45 +9,58 @@ on:
       - master
   workflow_dispatch:
 
+env:
+  NODE_VERSION: '18.x'
+
 jobs:
   build:
-    runs-on: windows-latest
-    permissions:
-      contents: read #This is required for actions/checkout
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-      - name: npm install, build, and test
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prune devDependencies
+        run: npm prune --omit=dev
+
+      - name: Prepare release artifact
         run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
-      
-      - name: Upload artifact for deployment job
+          mkdir -p release
+          cp -R .next package.json next.config.js server.js release/
+          if [ -f web.config ]; then cp web.config release/; fi
+          if [ -d public ]; then cp -R public release/public; fi
+          cp -R node_modules release/node_modules
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-app
-          path: .
+          name: release
+          path: release
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: node-app
-      
+          name: release
+          path: .
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -55,11 +68,10 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_525774C0F7604DE2AB2A29978073835E }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6662A528EDA84EAE90F517A38FD5A084 }}
 
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
         with:
           app-name: 'unchain'
           slot-name: 'Production'
-          package: .
+          package: ./release
           
