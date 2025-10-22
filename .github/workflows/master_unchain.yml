@@ -97,6 +97,28 @@ jobs:
               # Windows: ensure 64-bit worker process
               az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
             fi
+      - name: Disable App Service Authentication (allow anonymous access)
+        uses: azure/cli@v1
+        with:
+          inlineScript: |
+            set -e
+            APP_NAME="unchain"
+            RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+            if [ -z "$RG" ]; then
+              RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
+            fi
+            if [ -z "$RG" ]; then
+              echo "Resource group not found for app $APP_NAME. Set AZURE_RESOURCE_GROUP secret."
+              exit 1
+            fi
+
+            # Try new auth model first; fall back to legacy command if needed
+            if az webapp auth update -g "$RG" -n "$APP_NAME" --enabled false >/dev/null 2>&1; then
+              echo "Disabled App Service Authentication (auth v2)."
+            else
+              az webapp auth set -g "$RG" -n "$APP_NAME" --enabled false
+              echo "Disabled App Service Authentication (legacy)."
+            fi
 
             # App settings to pin Node and control Kudu build behavior + Prisma engine mode
             az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings \
