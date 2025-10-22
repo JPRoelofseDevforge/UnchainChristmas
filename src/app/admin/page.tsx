@@ -74,7 +74,7 @@ export default function AdminPage() {
     if (email === 'admin@unchain.org' && password === 'admin123') {
       setIsAuthenticated(true)
       loadData()
-      showNotification('success', '🎄 Welcome to the Admin Panel! Ready to spread Christmas magic!')
+      showNotification('success', '🎄 Welcome to the Admin Panel! Ready to spread Christmas magic!!!')
     } else {
       showNotification('error', '❌ Invalid credentials. Please check your email and password.')
     }
