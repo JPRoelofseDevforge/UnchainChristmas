@@ -103,12 +103,9 @@ jobs:
           inlineScript: |
             set -e
             APP_NAME="unchain"
-            RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+            RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
             if [ -z "$RG" ]; then
-              RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
-            fi
-            if [ -z "$RG" ]; then
-              echo "Resource group not found for app $APP_NAME. Set AZURE_RESOURCE_GROUP secret."
+              echo "Resource group not found for app $APP_NAME"
               exit 1
             fi
             echo "Using resource group: $RG"
@@ -159,12 +156,9 @@ jobs:
           inlineScript: |
             set -e
             APP_NAME="unchain"
-            RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+            RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
             if [ -z "$RG" ]; then
-              RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
-            fi
-            if [ -z "$RG" ]; then
-              echo "Resource group not found for app $APP_NAME. Set AZURE_RESOURCE_GROUP secret."
+              echo "Resource group not found for app $APP_NAME"
               exit 1
             fi
 
