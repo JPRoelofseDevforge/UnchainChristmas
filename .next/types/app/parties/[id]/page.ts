@@ -1,4 +1,4 @@
-// File: C:\Work\UnchainChristmas\src\app\parties\[id]\page.tsx
+// File: c:\Work\UnchainChristmas\src\app\parties\[id]\page.tsx
 import * as entry from '../../../../../src/app/parties/[id]/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

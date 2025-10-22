@@ -1,4 +1,4 @@
-// File: C:\Work\UnchainChristmas\src\app\api\admin\child\route.ts
+// File: c:\Work\UnchainChristmas\src\app\api\admin\child\route.ts
 import * as entry from '../../../../../../src/app/api/admin/child/route.js'
 import type { NextRequest } from 'next/server.js'
 
