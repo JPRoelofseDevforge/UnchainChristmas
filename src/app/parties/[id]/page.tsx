@@ -34,13 +34,6 @@ interface Party {
   children: Child[]
 }
 
-export async function generateStaticParams() {
-  // For static export, we need to provide possible party IDs
-  // Since we can't query the database at build time, we'll return empty array
-  // This means dynamic routes won't be pre-generated, but will work at runtime
-  return []
-}
-
 export default function PartyPage() {
   const params = useParams()
   const [party, setParty] = useState<Party | null>(null)
