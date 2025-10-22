@@ -14,7 +14,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -34,12 +34,19 @@ jobs:
         run: npm prune --omit=dev
 
       - name: Prepare release artifact
+        shell: pwsh
         run: |
-          mkdir -p release
-          cp -R .next package.json next.config.js server.js release/
-          if [ -f web.config ]; then cp web.config release/; fi
-          if [ -d public ]; then cp -R public release/public; fi
-          cp -R node_modules release/node_modules
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item -Recurse -Force .next -Destination release/.next
+          Copy-Item -Force package.json -Destination release/package.json
+          if (Test-Path next.config.js) { Copy-Item -Force next.config.js -Destination release/next.config.js }
+          Copy-Item -Force server.js -Destination release/server.js
+          if (Test-Path web.config) { Copy-Item -Force web.config -Destination release/web.config }
+          if (Test-Path public) {
+            New-Item -ItemType Directory -Force -Path release/public | Out-Null
+            Copy-Item -Recurse -Force ./public/* -Destination release/public
+          }
+          Copy-Item -Recurse -Force node_modules -Destination release/node_modules
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -59,7 +66,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release
-          path: .
+          path: ./release
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -68,10 +75,42 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_525774C0F7604DE2AB2A29978073835E }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6662A528EDA84EAE90F517A38FD5A084 }}
 
+      # Ensure 64-bit worker, pin Node to 18.x, and force Prisma to binary engines to avoid 32-bit Node-API issues
+      - name: Configure App Service runtime and app settings
+        uses: azure/cli@v1
+        with:
+          inlineScript: |
+            set -e
+            APP_NAME="unchain"
+            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+            echo "Using resource group: $RG"
+
+            # Use 64-bit worker process on Windows App Service
+            az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
+
+            # App settings to pin Node and control Kudu build behavior + Prisma engine mode
+            az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings \
+              WEBSITE_NODE_DEFAULT_VERSION=18.20.7 \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              SCM_SKIP_NODE_MODULES_INSTALL=true \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              PRISMA_CLIENT_ENGINE_TYPE=binary \
+              PRISMA_CLI_QUERY_ENGINE_TYPE=binary
+
+      - name: Restart App Service to apply settings
+        uses: azure/cli@v1
+        with:
+          inlineScript: |
+            APP_NAME="unchain"
+            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
+            az webapp restart -g "$RG" -n "$APP_NAME"
+
+      - name: Skip duplicate configuration
+        run: echo "Skipping duplicate App Service config step"
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'unchain'
           slot-name: 'Production'
-          package: .
+          package: ./release
           
