@@ -73,5 +73,5 @@ jobs:
         with:
           app-name: 'unchain'
           slot-name: 'Production'
-          package: ./release
+          package: .
           
