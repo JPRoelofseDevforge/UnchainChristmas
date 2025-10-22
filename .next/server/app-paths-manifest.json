@@ -1,1 +1,11 @@
-{}
+{
+  "/page": "app/page.js",
+  "/parties/[id]/page": "app/parties/[id]/page.js",
+  "/api/parties/route": "app/api/parties/route.js",
+  "/admin/page": "app/admin/page.js",
+  "/parties/page": "app/parties/page.js",
+  "/api/admin/party/route": "app/api/admin/party/route.js",
+  "/api/parties/[id]/route": "app/api/parties/[id]/route.js",
+  "/api/admin/wishlist/route": "app/api/admin/wishlist/route.js",
+  "/api/admin/child/route": "app/api/admin/child/route.js"
+}

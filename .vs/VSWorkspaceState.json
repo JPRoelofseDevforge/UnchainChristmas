@@ -1,0 +1,12 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.next",
+    "\\src",
+    "\\src\\app",
+    "\\src\\app\\api",
+    "\\src\\app\\api\\admin",
+    "\\src\\lib"
+  ],
+  "PreviewInSolutionExplorer": false
+}

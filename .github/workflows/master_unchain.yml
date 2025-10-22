@@ -97,7 +97,63 @@ jobs:
               # Windows: ensure 64-bit worker process
               az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
             fi
-      - name: Disable App Service Authentication (allow anonymous access)
+      - name: Disable Authentication and apply runtime/app settings
+        uses: azure/cli@v1
+        with:
+          inlineScript: |
+            set -e
+            APP_NAME="unchain"
+            RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+            if [ -z "$RG" ]; then
+              RG=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv)
+            fi
+            if [ -z "$RG" ]; then
+              echo "Resource group not found for app $APP_NAME. Set AZURE_RESOURCE_GROUP secret."
+              exit 1
+            fi
+            echo "Using resource group: $RG"
+
+            echo "Current auth settings (before):"
+            az webapp auth show -g "$RG" -n "$APP_NAME" || true
+
+            # Disable App Service Authentication (v2 first, fallback to legacy)
+            if az webapp auth update -g "$RG" -n "$APP_NAME" --enabled false >/dev/null 2>&1; then
+              echo "Disabled App Service Authentication (auth v2)."
+            else
+              az webapp auth set -g "$RG" -n "$APP_NAME" --enabled false
+              echo "Disabled App Service Authentication (legacy)."
+            fi
+
+            # Also disable legacy setting via app settings for safety
+            az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings WEBSITE_AUTH_ENABLED=false
+
+            # Ensure client certificate requirement is disabled
+            az webapp update -g "$RG" -n "$APP_NAME" --set clientCertEnabled=false
+
+            # Detect Linux vs Windows to apply platform-specific settings
+            KIND=$(az webapp show --name "$APP_NAME" -g "$RG" --query kind -o tsv || echo "")
+            if echo "$KIND" | grep -qi linux; then
+              echo "Linux App Service detected; skipping Windows-only worker process setting"
+            else
+              # Windows: ensure 64-bit worker process
+              az webapp config set -g "$RG" -n "$APP_NAME" --use-32bit-worker-process false
+            fi
+
+            # App settings to pin Node and control Kudu build behavior + Prisma engine mode, and set production env
+            az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings \
+              WEBSITE_NODE_DEFAULT_VERSION=18.20.7 \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              SCM_SKIP_NODE_MODULES_INSTALL=true \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              PRISMA_CLIENT_ENGINE_TYPE=binary \
+              PRISMA_CLI_QUERY_ENGINE_TYPE=binary \
+              NODE_ENV=production
+
+            echo "Auth settings (after):"
+            az webapp auth show -g "$RG" -n "$APP_NAME" || true
+
+
+      - name: Ensure public access (allow all networks)
         uses: azure/cli@v1
         with:
           inlineScript: |
@@ -112,22 +168,14 @@ jobs:
               exit 1
             fi
 
-            # Try new auth model first; fall back to legacy command if needed
-            if az webapp auth update -g "$RG" -n "$APP_NAME" --enabled false >/dev/null 2>&1; then
-              echo "Disabled App Service Authentication (auth v2)."
-            else
-              az webapp auth set -g "$RG" -n "$APP_NAME" --enabled false
-              echo "Disabled App Service Authentication (legacy)."
-            fi
+            echo "Current access restrictions:"
+            az webapp config access-restriction show -g "$RG" -n "$APP_NAME" || true
 
-            # App settings to pin Node and control Kudu build behavior + Prisma engine mode
-            az webapp config appsettings set -g "$RG" -n "$APP_NAME" --settings \
-              WEBSITE_NODE_DEFAULT_VERSION=18.20.7 \
-              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-              SCM_SKIP_NODE_MODULES_INSTALL=true \
-              WEBSITE_RUN_FROM_PACKAGE=1 \
-              PRISMA_CLIENT_ENGINE_TYPE=binary \
-              PRISMA_CLI_QUERY_ENGINE_TYPE=binary
+            echo "Adding wide allow rules (IPv4/IPv6) for app and SCM..."
+            az webapp config access-restriction add -g "$RG" -n "$APP_NAME" --rule-name AllowAllIPv4 --priority 100 --action Allow --ip-address 0.0.0.0/0 || true
+            az webapp config access-restriction add -g "$RG" -n "$APP_NAME" --rule-name AllowAllIPv6 --priority 110 --action Allow --ip-address ::/0 || true
+            az webapp config access-restriction add -g "$RG" -n "$APP_NAME" --rule-name AllowAllIPv4-SCM --priority 100 --action Allow --ip-address 0.0.0.0/0 --scm-site true || true
+            az webapp config access-restriction add -g "$RG" -n "$APP_NAME" --rule-name AllowAllIPv6-SCM --priority 110 --action Allow --ip-address ::/0 --scm-site true || true
 
       - name: Restart App Service to apply settings
         uses: azure/cli@v1
